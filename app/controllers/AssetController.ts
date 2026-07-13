@@ -1,319 +1,333 @@
 import { uuidv7 } from "uuidv7";
-import { Response, Request } from "../../type";
+import type { Response, Request } from "../../type";
 import fs from "fs";
-import sharp from "sharp";  
-import DB from "../services/DB";
+import sharp from "sharp";
+import { assets as assetsRepo } from "../repositories/assets";
 import { getPublicUrl, uploadBuffer } from "app/services/S3";
 
-
-
 // Cache object to store file contents in memory
-let cache: { [key: string]: Buffer } = {};
+const cache: { [key: string]: Buffer } = {};
 
 class Controller {
-    /**
-     * Serves assets from the dist folder (compiled assets)
-     * - Handles CSS and JS files with proper content types
-     * - Implements file caching for better performance
-     * - Sets appropriate cache headers for browser caching
-     */
+	/**
+	 * Serves assets from the dist folder (compiled assets)
+	 * - Handles CSS and JS files with proper content types
+	 * - Implements file caching for better performance
+	 * - Sets appropriate cache headers for browser caching
+	 */
 
-    public async uploadAsset(request: Request, response: Response) {
-        try { 
+	public async uploadAsset(request: Request, response: Response) {
+		try {
+			let isValidFile = true;
 
-        
-     
+			await request.multipart(async (field: any) => {
+				if (field.file) {
+					if (!field.mime_type.includes("image")) {
+						isValidFile = false;
+						return;
+					}
 
-            let isValidFile = true;
+					const id = uuidv7();
+					const fileName = `${id}.webp`;
 
-            await request.multipart(async (field: any) => {
-                if (field.file) {
-                    if (!field.mime_type.includes("image")) {
-                        isValidFile = false;
-                        return;
-                    }
+					// Create a buffer to store the image data
+					const chunks: Buffer[] = [];
+					const readable = field.file.stream;
 
-                    const id = uuidv7();
-                    const fileName = `${id}.webp`; 
+					readable.on("data", (chunk: Buffer) => {
+						chunks.push(chunk);
+					});
 
-                    // Create a buffer to store the image data
-                    const chunks: Buffer[] = [];
-                    const readable = field.file.stream;
+					readable.on("end", async () => {
+						const buffer = Buffer.concat(chunks);
 
-                    readable.on('data', (chunk: Buffer) => {
-                        chunks.push(chunk);
-                    });
+						try {
+							// Process image with Sharp and get buffer
+							const processedBuffer = await sharp(buffer)
+								.webp({ quality: 80 }) // Convert to WebP with 80% quality
+								.resize(1200, 1200, {
+									// Resize to max 1200x1200 while maintaining aspect ratio
+									fit: "inside",
+									withoutEnlargement: true,
+								})
+								.toBuffer();
 
-                    readable.on('end', async () => {
-                        const buffer = Buffer.concat(chunks);
+							// Upload directly to S3/Wasabi
+							const s3Key = `/assets/${fileName}`;
 
-                        try {
-                            // Process image with Sharp and get buffer
-                            const processedBuffer = await sharp(buffer)
-                                .webp({ quality: 80 }) // Convert to WebP with 80% quality
-                                .resize(1200, 1200, { // Resize to max 1200x1200 while maintaining aspect ratio
-                                    fit: 'inside',
-                                    withoutEnlargement: true
-                                })
-                                .toBuffer();
+							await uploadBuffer(
+								s3Key,
+								processedBuffer,
+								"image/webp",
+								"public, max-age=31536000",
+							);
 
-                            // Upload directly to S3/Wasabi
-                            const s3Key = `/assets/${fileName}`; 
+							// Get public URL from S3 service
+							const publicUrl = getPublicUrl(s3Key);
 
-                             await uploadBuffer(s3Key, processedBuffer, 'image/webp', 'public, max-age=31536000');
+							// Save to assets table with S3 URL
+							const result = {
+								id,
+								type: "image",
+								url: publicUrl,
+								mime_type: "image/webp",
+								name: fileName,
+								size: processedBuffer.length,
+								user_id: request.user.id,
+								s3_key: s3Key, // Store S3 key for future reference
+								created_at: Date.now(),
+								updated_at: Date.now(),
+							};
+							await assetsRepo.create(result);
 
-                            // Get public URL from S3 service
-                            const publicUrl = getPublicUrl(s3Key);
+							response.json(result);
+						} catch (err) {
+							console.error("Error processing and uploading image:", err);
+							response.status(500).send("Error processing and uploading image");
+						}
+					});
+				}
+			});
 
-                            // Save to assets table with S3 URL
-                            const result = {
-                                id,
-                                type: 'image',
-                                url: publicUrl,
-                                mime_type: 'image/webp',
-                                name: fileName,
-                                size: processedBuffer.length,
-                                user_id: request.user.id,
-                                s3_key: s3Key, // Store S3 key for future reference
-                                created_at: Date.now(),
-                                updated_at: Date.now()
-                            }
-                            await DB.from("assets").insert(result);
+			if (!isValidFile) {
+				return response
+					.status(400)
+					.send("Invalid file type. Only images are allowed.");
+			}
+		} catch (error) {
+			console.error("Error uploading asset:", error);
+			return response.status(500).send("Internal server error");
+		}
+	}
 
-                            response.json(result);
-                        } catch (err) {
-                            console.error('Error processing and uploading image:', err);
-                            response.status(500).send("Error processing and uploading image");
-                        }
-                    });
-                }
-            });
+	public async distFolder(request: Request, response: Response) {
+		const file = request.params.file;
 
-            if (!isValidFile) {
-                return response.status(400).send("Invalid file type. Only images are allowed.");
-            }
+		try {
+			const filePath = `dist/assets/${file}`;
 
-        } catch (error) {
-            console.error("Error uploading asset:", error);
-            return response.status(500).send("Internal server error");
-        }
-    }
+			// Set appropriate content type based on file extension
+			if (file.endsWith(".css")) {
+				response.setHeader("Content-Type", "text/css");
+			} else if (file.endsWith(".js")) {
+				response.setHeader("Content-Type", "application/javascript");
+			} else {
+				response.setHeader("Content-Type", "application/octet-stream");
+			}
 
-    public async distFolder(request: Request, response: Response) {
-        const file = request.params.file;
+			// Set cache control header for browser caching (1 year)
+			response.setHeader("Cache-Control", "public, max-age=31536000");
 
-        try {
-            const filePath = `dist/assets/${file}`;
+			// Return cached content if available
+			if (cache[file]) {
+				return response.send(cache[file]);
+			}
 
-            // Set appropriate content type based on file extension
-            if (file.endsWith(".css")) {
-                response.setHeader("Content-Type", "text/css");
-            } else if (file.endsWith(".js")) {
-                response.setHeader("Content-Type", "application/javascript");
-            } else {
-                response.setHeader("Content-Type", "application/octet-stream");
-            }
+			// Check if file exists and serve it
+			if (
+				await fs.promises
+					.access(filePath)
+					.then(() => true)
+					.catch(() => false)
+			) {
+				const fileContent = await fs.promises.readFile(filePath);
 
-            // Set cache control header for browser caching (1 year)
-            response.setHeader("Cache-Control", "public, max-age=31536000");
+				// Cache the file content
+				cache[file] = fileContent;
 
-            // Return cached content if available
-            if (cache[file]) {
-                return response.send(cache[file]);
-            }
+				return response.send(fileContent);
+			}
 
-            // Check if file exists and serve it
-            if (await fs.promises.access(filePath).then(() => true).catch(() => false)) {
-                const fileContent = await fs.promises.readFile(filePath);
-                
-                // Cache the file content
-                cache[file] = fileContent;
+			return response.status(404).send("File not found");
+		} catch (error) {
+			console.error("Error serving dist file:", error);
+			return response.status(500).send("Internal server error");
+		}
+	}
 
-                return response.send(fileContent);
-            }
+	/**
+	 * Serves static files from the public folder
+	 * - Implements security by checking allowed file extensions
+	 * - Prevents directory traversal attacks
+	 * - Handles various file types (images, fonts, documents, etc.)
+	 */
+	public async publicFolder(request: Request, response: Response) {
+		// List of allowed file extensions for security
+		const allowedExtensions = [
+			".ico",
+			".png",
+			".jpeg",
+			".jpg",
+			".gif",
+			".svg",
+			".txt",
+			".pdf",
+			".css",
+			".js",
+			".woff",
+			".woff2",
+			".ttf",
+			".eot",
+			".mp4",
+			".webm",
+			".mp3",
+			".wav",
+		];
 
-            return response.status(404).send("File not found");
-        } catch (error) {
-            console.error("Error serving dist file:", error);
-            return response.status(500).send("Internal server error");
-        }
-    }
+		// Clean and construct the file path
+		const path = request.path.replace("/", "").replaceAll("%20", " ");
 
-    /**
-     * Serves static files from the public folder
-     * - Implements security by checking allowed file extensions
-     * - Prevents directory traversal attacks
-     * - Handles various file types (images, fonts, documents, etc.)
-     */
-    public async publicFolder(request: Request, response: Response) {
-        // List of allowed file extensions for security
-        const allowedExtensions = [
-            '.ico', '.png', '.jpeg', '.jpg', '.gif', '.svg',
-            '.txt', '.pdf', '.css', '.js',
-            '.woff', '.woff2', '.ttf', '.eot',
-            '.mp4', '.webm', '.mp3', '.wav'
-        ];
+		// Check if the path has any extension
+		if (!path.includes(".")) {
+			return response.status(404).send("Page not found");
+		}
 
-        // Clean and construct the file path
-        const path =   request.path.replace("/", "").replaceAll("%20", " ");
+		// Security check: validate file extension
+		if (!allowedExtensions.some((ext) => path.toLowerCase().endsWith(ext))) {
+			return response.status(403).send("File type not allowed");
+		}
 
-        // Check if the path has any extension
-        if (!path.includes('.')) {
-            return response.status(404).send('Page not found');
-        }
+		// Check if file exists
+		if (!fs.existsSync(path)) {
+			return response.status(404).send("File not found");
+		}
 
-        // Security check: validate file extension
-        if (!allowedExtensions.some(ext => path.toLowerCase().endsWith(ext))) {
-            return response.status(403).send('File type not allowed');
-        }
+		// Serve the file
+		return response.download(path);
+	}
 
-        // Check if file exists
-        if (!fs.existsSync(path)) {
-            return response.status(404).send('File not found');
-        }
+	/**
+	 * Upload thumbnail for post settings
+	 * POST /api/upload-thumbnail
+	 */
+	public async uploadThumbnail(request: Request, response: Response) {
+		try {
+			let result: any = null;
+			let isValidFile = true;
 
-        // Serve the file
-        return response.download(path);
-    }
+			await request.multipart(async (field: any) => {
+				if (field.file) {
+					if (!field.mime_type.includes("image")) {
+						isValidFile = false;
+						return;
+					}
 
-    /**
-     * Upload thumbnail for post settings
-     * POST /api/upload-thumbnail
-     */
-    public async uploadThumbnail(request: Request, response: Response) {
-        try {
-            let result: any = null;
-            let isValidFile = true;
+					const id = uuidv7();
+					const fileName = `thumbnail-${id}.webp`;
 
-            await request.multipart(async (field: any) => {
-                if (field.file) {
-                    if (!field.mime_type.includes("image")) {
-                        isValidFile = false;
-                        return;
-                    }
+					const chunks: Buffer[] = [];
+					const readable = field.file.stream;
 
-                    const id = uuidv7();
-                    const fileName = `thumbnail-${id}.webp`;
+					readable.on("data", (chunk: Buffer) => {
+						chunks.push(chunk);
+					});
 
-                    const chunks: Buffer[] = [];
-                    const readable = field.file.stream;
+					readable.on("end", async () => {
+						const buffer = Buffer.concat(chunks);
 
-                    readable.on('data', (chunk: Buffer) => {
-                        chunks.push(chunk);
-                    });
+						try {
+							// Process image with Sharp - optimize for OG image (1200x630)
+							const processedBuffer = await sharp(buffer)
+								.webp({ quality: 85 })
+								.resize(1200, 630, {
+									fit: "cover",
+									position: "center",
+								})
+								.toBuffer();
 
-                    readable.on('end', async () => {
-                        const buffer = Buffer.concat(chunks);
+							// Upload to S3/Wasabi
+							const s3Key = `/thumbnails/${fileName}`;
+							await uploadBuffer(
+								s3Key,
+								processedBuffer,
+								"image/webp",
+								"public, max-age=31536000",
+							);
 
-                        try {
-                            // Process image with Sharp - optimize for OG image (1200x630)
-                            const processedBuffer = await sharp(buffer)
-                                .webp({ quality: 85 })
-                                .resize(1200, 630, {
-                                    fit: 'cover',
-                                    position: 'center'
-                                })
-                                .toBuffer();
+							// Get public URL
+							const publicUrl = getPublicUrl(s3Key);
 
-                            // Upload to S3/Wasabi
-                            const s3Key = `/thumbnails/${fileName}`;
-                            await uploadBuffer(s3Key, processedBuffer, 'image/webp', 'public, max-age=31536000');
+							result = { url: publicUrl };
+							response.json(result);
+						} catch (err) {
+							console.error("Error processing thumbnail:", err);
+							response
+								.status(500)
+								.json({ error: "Error processing thumbnail" });
+						}
+					});
+				}
+			});
 
-                            // Get public URL
-                            const publicUrl = getPublicUrl(s3Key);
+			if (!isValidFile) {
+				return response
+					.status(400)
+					.json({ error: "Invalid file type. Only images are allowed." });
+			}
+		} catch (error) {
+			console.error("Error uploading thumbnail:", error);
+			return response.status(500).json({ error: "Internal server error" });
+		}
+	}
 
-                            result = { url: publicUrl };
-                            response.json(result);
-                        } catch (err) {
-                            console.error('Error processing thumbnail:', err);
-                            response.status(500).json({ error: "Error processing thumbnail" });
-                        }
-                    });
-                }
-            });
+	/**
+	 * Assets page
+	 * GET /assets
+	 */
+	public async assetsPage(request: Request, response: Response) {
+		try {
+			const userAssets = assetsRepo.findByUser(request.user.id);
+			return response.inertia("assets", { assets: userAssets });
+		} catch (error) {
+			console.error("Error loading assets page:", error);
+			return response.inertia("assets", { assets: [] });
+		}
+	}
 
-            if (!isValidFile) {
-                return response.status(400).json({ error: "Invalid file type. Only images are allowed." });
-            }
+	/**
+	 * List user's assets
+	 * GET /api/assets
+	 */
+	public async listAssets(request: Request, response: Response) {
+		try {
+			const userAssets = assetsRepo.findByUser(request.user.id);
+			return response.json({ assets: userAssets });
+		} catch (error) {
+			console.error("Error listing assets:", error);
+			return response.status(500).json({ error: "Failed to load assets" });
+		}
+	}
 
-        } catch (error) {
-            console.error("Error uploading thumbnail:", error);
-            return response.status(500).json({ error: "Internal server error" });
-        }
-    }
+	/**
+	 * Delete user's asset
+	 * DELETE /api/assets/:id
+	 */
+	public async deleteAsset(request: Request, response: Response) {
+		try {
+			const { id } = request.params;
 
-    /**
-     * Assets page
-     * GET /assets
-     */
-    public async assetsPage(request: Request, response: Response) {
-        try {
-            const assets = await DB.from("assets")
-                .where("user_id", request.user.id)
-                .orderBy("created_at", "desc")
-                .limit(50);
+			// Find asset and verify ownership
+			const asset = assetsRepo.findByIdAndUser(id, request.user.id);
 
-            return response.inertia("assets", { assets });
-        } catch (error) {
-            console.error("Error loading assets page:", error);
-            return response.inertia("assets", { assets: [] });
-        }
-    }
+			if (!asset) {
+				return response.status(404).json({ error: "Asset not found" });
+			}
 
-    /**
-     * List user's assets
-     * GET /api/assets
-     */
-    public async listAssets(request: Request, response: Response) {
-        try {
-            const assets = await DB.from("assets")
-                .where("user_id", request.user.id)
-                .orderBy("created_at", "desc")
-                .limit(50);
+			// Delete from S3 if s3_key exists
+			if (asset.s3_key) {
+				const { deleteObject } = await import("app/services/S3");
+				await deleteObject(asset.s3_key);
+			}
 
-            return response.json({ assets });
-        } catch (error) {
-            console.error("Error listing assets:", error);
-            return response.status(500).json({ error: "Failed to load assets" });
-        }
-    }
+			// Delete from database
+			assetsRepo.deleteByIdAndUser(id, request.user.id);
 
-    /**
-     * Delete user's asset
-     * DELETE /api/assets/:id
-     */
-    public async deleteAsset(request: Request, response: Response) {
-        try {
-            const { id } = request.params;
-            
-            // Find asset and verify ownership
-            const asset = await DB.from("assets")
-                .where("id", id)
-                .where("user_id", request.user.id)
-                .first();
-
-            if (!asset) {
-                return response.status(404).json({ error: "Asset not found" });
-            }
-
-            // Delete from S3 if s3_key exists
-            if (asset.s3_key) {
-                const { deleteObject } = await import("app/services/S3");
-                await deleteObject(asset.s3_key);
-            }
-
-            // Delete from database
-            await DB.from("assets")
-                .where("id", id)
-                .where("user_id", request.user.id)
-                .delete();
-
-            return response.json({ success: true });
-        } catch (error) {
-            console.error("Error deleting asset:", error);
-            return response.status(500).json({ error: "Failed to delete asset" });
-        }
-    }
+			return response.json({ success: true });
+		} catch (error) {
+			console.error("Error deleting asset:", error);
+			return response.status(500).json({ error: "Failed to delete asset" });
+		}
+	}
 }
 
 export default new Controller();

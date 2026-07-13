@@ -1,29 +1,25 @@
-import type { Knex } from "knex"; 
+import type { Knex } from "knex";
+import path from "path";
 
-// Update with your config settings.
+// Single config — DB_FILENAME env var takes precedence, otherwise derive from NODE_ENV
+const defaultFile =
+	process.env.NODE_ENV === "production" ? "production.sqlite3" : "dev.sqlite3";
 
 const config: { [key: string]: Knex.Config } = {
-  development: {
-    client: "better-sqlite3",
-    connection: {
-      filename: "./data/dev.sqlite3"
-    },
-    useNullAsDefault : true,
-    seeds: {
-      directory: "./seeds"
-    }
-  },
-
-  production: {
-    client: "better-sqlite3",
-    connection: {
-      filename: "./data/production.sqlite3"
-    },
-    useNullAsDefault : true
-  },
- 
- 
-
+	development: {
+		client: "better-sqlite3",
+		connection: {
+			filename: path.join(
+				process.cwd(),
+				"data",
+				process.env.DB_FILENAME || defaultFile,
+			),
+		},
+		useNullAsDefault: true,
+		seeds: {
+			directory: "./seeds",
+		},
+	},
 };
 
-export default config
+export default config;

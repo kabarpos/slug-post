@@ -1,6 +1,6 @@
-
-import DB from "../services/DB";
-import { Request, Response } from "../../type";
+import { sessions } from "../repositories/sessions";
+import { users } from "../repositories/users";
+import type { Request, Response } from "../../type";
 
 /**
  * Optional Auth Middleware
@@ -8,20 +8,18 @@ import { Request, Response } from "../../type";
  * Used for routes that work for both authenticated and guest users
  */
 export default async (request: Request, response: Response) => {
-    if (request.cookies.auth_id) {
-        const session = await DB.from("sessions").where("id", request.cookies.auth_id).first();
+	if (request.cookies.auth_id) {
+		const session = sessions.findById(request.cookies.auth_id);
 
-        if (session) {
-            const user = await DB.from("users")
-                .where("id", session.user_id)
-                .select(["id", "name", "email", "phone", "is_admin", "is_verified"])
-                .first();
-
-            request.user = user;
-            request.share = {
-                "user": request.user,
-            };
-        }
-    }
-    // Don't redirect if not authenticated - just continue
-}
+		if (session) {
+			const user = users.findByIdAuth(session.user_id);
+			if (user) {
+				request.user = user;
+				request.share = {
+					user: request.user,
+				};
+			}
+		}
+	}
+	// Don't redirect if not authenticated - just continue
+};

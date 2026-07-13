@@ -1,40 +1,40 @@
-import { Response, Request } from "../../type"; 
+import type { Response, Request } from "../../type";
 import { view } from "../services/View";
-import DB from "../services/DB";
+import { sessions } from "../repositories/sessions";
+import { users } from "../repositories/users";
 
 class Controller {
-    
-    public async index (request : Request, response : Response) { 
-        // Check if user is logged in
-        if (request.cookies.auth_id) {
-            const session = await DB.from("sessions").where("id", request.cookies.auth_id).first();
-            if (session) {
-                const user = await DB.from("users").where("id", session.user_id).select(["id", "name", "email"]).first();
-                if (user) {
-                    return response.inertia("CreatePost", { user });
-                }
-            }
-        }
-        
-        // Not logged in - show public HTML page
-        return response.type("html").send(view("index.html"));
-    }
+	public async index(request: Request, response: Response) {
+		// Check if user is logged in
+		if (request.cookies.auth_id) {
+			const session = sessions.findById(request.cookies.auth_id);
+			if (session) {
+				const user = users.findByIdLight(session.user_id);
+				if (user) {
+					return response.inertia("CreatePost", { user });
+				}
+			}
+		}
 
-    public async about (request : Request,response : Response) { 
-        return response.type("html").send(view("about.html"));
-    }
+		// Not logged in - show public HTML page
+		return response.type("html").send(view("index.html"));
+	}
 
-    public async docs (request : Request,response : Response) { 
-        return response.type("html").send(view("docs.html"));
-    }
+	public async about(request: Request, response: Response) {
+		return response.type("html").send(view("about.html"));
+	}
 
-    public async tos (request : Request,response : Response) { 
-        return response.type("html").send(view("tos.html"));
-    }
+	public async docs(request: Request, response: Response) {
+		return response.type("html").send(view("docs.html"));
+	}
 
-    public async privacy (request : Request,response : Response) { 
-        return response.type("html").send(view("privacy.html"));
-    }
+	public async tos(request: Request, response: Response) {
+		return response.type("html").send(view("tos.html"));
+	}
+
+	public async privacy(request: Request, response: Response) {
+		return response.type("html").send(view("privacy.html"));
+	}
 }
 
-export default new Controller()
+export default new Controller();

@@ -1,31 +1,26 @@
- 
-import DB
-from "../services/DB";
-import { Request, Response } from "../../type";
+import { sessions } from "../repositories/sessions";
+import { users } from "../repositories/users";
+import type { Request, Response } from "../../type";
 
-export default async (request : Request,response : Response) => {
-     
-   if(request.cookies.auth_id)
-   { 
-       const session = await DB.from("sessions").where("id",request.cookies.auth_id).first();
+export default async (request: Request, response: Response) => {
+	if (request.cookies.auth_id) {
+		const session = sessions.findById(request.cookies.auth_id);
 
-       if(session)
-       {
-           const user = await DB.from("users").where("id",session.user_id).select(["id","name","email","phone","is_admin","is_verified"]).first();
-            
-           
-           request.user = user;
+		if (session) {
+			const user = users.findByIdAuth(session.user_id);
 
-           request.share = {
-               "user" : request.user,
-           }
-       }else{ 
-           response.cookie("auth_id","",0).redirect("/login");
-       }
-      
-   }
-   else
-   { 
-       response.cookie("auth_id","",0).redirect("/login");
-   }
-}
+			if (user) {
+				request.user = user;
+				request.share = {
+					user: request.user,
+				};
+				return;
+			}
+		}
+
+		// Invalid session — clear cookie and redirect
+		response.cookie("auth_id", "", 0).redirect("/login");
+	} else {
+		response.cookie("auth_id", "", 0).redirect("/login");
+	}
+};
