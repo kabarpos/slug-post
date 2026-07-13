@@ -1,0 +1,46 @@
+{
+  "concepts/code-conventions": [
+    "concepts/dev-workflow",
+    "concepts/eta-ssr-templates",
+    "concepts/laju-architecture",
+    "concepts/svelte-inertia-pages",
+    "entities/slugpost-platform",
+    "entities/slugpost-project"
+  ],
+  "concepts/database-schema": [
+    "entities/slugpost-platform"
+  ],
+  "concepts/dev-workflow": [
+    "entities/slugpost-platform"
+  ],
+  "concepts/eta-ssr-templates": [
+    "concepts/code-conventions"
+  ],
+  "concepts/laju-architecture": [
+    "concepts/code-conventions",
+    "concepts/database-schema",
+    "concepts/eta-ssr-templates",
+    "concepts/route-structure",
+    "entities/slugpost-platform",
+    "entities/slugpost-project"
+  ],
+  "concepts/route-structure": [
+    "concepts/laju-architecture",
+    "entities/slugpost-platform",
+    "entities/slugpost-project"
+  ],
+  "concepts/svelte-inertia-pages": [
+    "concepts/code-conventions"
+  ],
+  "entities/slugpost-platform": [
+    "concepts/code-conventions",
+    "concepts/database-schema",
+    "concepts/dev-workflow",
+    "concepts/laju-architecture",
+    "concepts/route-structure"
+  ],
+  "entities/slugpost-project": [],
+  "sources/obs-2026-07-13-db-connection-dihapus-diganti-db-filename": [],
+  "sources/obs-2026-07-13-migrasi-knex-ke-better-sqlite3-langsung-via-repository-patte": [],
+  "sources/obs-2026-07-13-slugpost-project-local-llm-wiki-initialized": []
+}

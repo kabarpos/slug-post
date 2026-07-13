@@ -1,0 +1,107 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-07-13T03:25:53.061Z",
+  "pages": {
+    "concepts/code-conventions": {
+      "type": "page",
+      "title": "code-conventions",
+      "created": "2026-07-13",
+      "updated": "2026-07-13"
+    },
+    "concepts/database-schema": {
+      "type": "page",
+      "title": "database-schema",
+      "created": "2026-07-13",
+      "updated": "2026-07-13"
+    },
+    "concepts/dev-workflow": {
+      "type": "page",
+      "title": "dev-workflow",
+      "created": "2026-07-13",
+      "updated": "2026-07-13"
+    },
+    "concepts/eta-ssr-templates": {
+      "type": "page",
+      "title": "eta-ssr-templates",
+      "created": "2026-07-13",
+      "updated": "2026-07-13"
+    },
+    "concepts/laju-architecture": {
+      "type": "page",
+      "title": "laju-architecture",
+      "created": "2026-07-13",
+      "updated": "2026-07-13"
+    },
+    "concepts/route-structure": {
+      "type": "page",
+      "title": "route-structure",
+      "created": "2026-07-13",
+      "updated": "2026-07-13"
+    },
+    "concepts/svelte-inertia-pages": {
+      "type": "page",
+      "title": "svelte-inertia-pages",
+      "created": "2026-07-13",
+      "updated": "2026-07-13"
+    },
+    "entities/slugpost-platform": {
+      "type": "page",
+      "title": "slugpost-platform",
+      "created": "2026-07-13",
+      "updated": "2026-07-13"
+    },
+    "entities/slugpost-project": {
+      "type": "page",
+      "title": "slugpost-project",
+      "created": "2026-07-13",
+      "updated": "2026-07-13"
+    },
+    "sources/obs-2026-07-13-db-connection-dihapus-diganti-db-filename": {
+      "type": "source",
+      "title": "\"Observation: DB_CONNECTION dihapus, diganti DB_FILENAME\"",
+      "created": "2026-07-13",
+      "updated": "2026-07-13",
+      "slug": "obs-2026-07-13-db-connection-dihapus-diganti-db-filename",
+      "status": "observation",
+      "relevance": "medium",
+      "observed_at": "2026-07-13T03:08:59.929Z",
+      "tags": [
+        "slugpost",
+        "env",
+        "database",
+        "refactor"
+      ]
+    },
+    "sources/obs-2026-07-13-migrasi-knex-ke-better-sqlite3-langsung-via-repository-patte": {
+      "type": "source",
+      "title": "\"Observation: Migrasi Knex ke better-sqlite3 langsung via repository pattern\"",
+      "created": "2026-07-13",
+      "updated": "2026-07-13",
+      "slug": "obs-2026-07-13-migrasi-knex-ke-better-sqlite3-langsung-via-repository-patte",
+      "status": "observation",
+      "relevance": "high",
+      "observed_at": "2026-07-13T03:03:34.874Z",
+      "tags": [
+        "slugpost",
+        "refactor",
+        "database",
+        "repository-pattern"
+      ]
+    },
+    "sources/obs-2026-07-13-slugpost-project-local-llm-wiki-initialized": {
+      "type": "source",
+      "title": "\"Observation: SlugPost project-local .llm-wiki initialized\"",
+      "created": "2026-07-13",
+      "updated": "2026-07-13",
+      "slug": "obs-2026-07-13-slugpost-project-local-llm-wiki-initialized",
+      "status": "observation",
+      "relevance": "high",
+      "observed_at": "2026-07-13T02:40:36.999Z",
+      "tags": [
+        "slugpost",
+        "project-setup",
+        "llm-wiki"
+      ]
+    }
+  }
+}
