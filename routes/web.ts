@@ -18,6 +18,7 @@ const Route = new HyperExpress.Router();
  * GET  /robots.txt - Robots.txt file
  */
 Route.get("/sitemap.xml", SitemapController.sitemap);
+Route.get("/rss.xml", SitemapController.rss);
 Route.get("/robots.txt", SitemapController.robots);
 
 /**
@@ -51,6 +52,7 @@ Route.get("/privacy", HomeController.privacy);
 Route.get("/api/check-slug/:slug", PostController.checkSlug);
 Route.post("/api/preview", PostController.preview);
 Route.post("/publish", [OptionalAuth], PostController.store);
+Route.post("/api/publish", [OptionalAuth], PostController.apiPublish);
 Route.get("/success", [OptionalAuth], PostController.success);
 
 /**

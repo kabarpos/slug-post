@@ -331,7 +331,6 @@
     <div 
         class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all"
         on:click|stopPropagation
-        on:keydown|stopPropagation
         role="document"
         tabindex="-1"
     >

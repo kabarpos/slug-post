@@ -1,0 +1,29 @@
+feat: RSS feed, SEO upgrade, public API, scheduled/expiring posts
+
+RSS Feed:
+- Add GET /rss.xml endpoint with valid RSS 2.0 + atom:link
+- Only includes published posts that haven't expired
+- XML entity escaping for safety
+
+SEO Upgrade:
+- Canonical URL link tag in post.html
+- RSS feed alternate link in head
+- Open Graph tags (og:title, description, type, url, image, site_name)
+- Twitter Card tags (summary_large_image with thumbnail support)
+- Pass slug & thumbnail data to view renderer
+
+Public API:
+- Add POST /api/publish endpoint with OptionalAuth
+- Auto-generate slug from title if not provided
+- Random suffix dedup on slug collision (up to 10 attempts)
+- Support scheduled_at and expires_at parameters
+- Returns full response with public/edit URLs + edit token
+
+Scheduled & Expiring Posts:
+- New migration: status, scheduled_at, expires_at columns
+- Posts with future scheduled_at return 404 until ready
+- Posts with past expires_at return 404 (expired)
+- findPublishedBySlug() filters by status + schedule + expiry
+- allPublished() and allSlugs() only return visible posts
+- Posts repository create/update supports new fields
+- Dashboard shows post status for author

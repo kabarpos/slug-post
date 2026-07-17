@@ -15,6 +15,9 @@ export interface Post {
 	meta: string | null;
 	description: string | null;
 	thumbnail: string | null;
+	status: string | null;
+	scheduled_at: number | null;
+	expires_at: number | null;
 	created_at: number;
 	updated_at: number;
 	last_viewed_at: number | null;
@@ -28,7 +31,21 @@ export const posts = {
 			| undefined;
 	},
 
-	/** Find a single post by slug */
+	/** Find a published post by slug (only visible posts) */
+	findPublishedBySlug(slug: string): Post | undefined {
+		const now = Date.now();
+		return db
+			.prepare(
+				`SELECT * FROM posts 
+       WHERE slug = ? 
+         AND (status = 'published' OR status IS NULL)
+         AND (scheduled_at IS NULL OR scheduled_at <= ?)
+         AND (expires_at IS NULL OR expires_at > ?)`,
+			)
+			.get(slug, now, now) as Post | undefined;
+	},
+
+	/** Find a single post by slug (any status — for editing) */
 	findBySlug(slug: string): Post | undefined {
 		return db.prepare("SELECT * FROM posts WHERE slug = ?").get(slug) as
 			| Post
@@ -56,10 +73,13 @@ export const posts = {
 		format?: string;
 		edit_token: string;
 		author_id: string | null;
+		status?: string;
+		scheduled_at?: number | null;
+		expires_at?: number | null;
 	}) {
 		const stmt = db.prepare(`
-      INSERT INTO posts (slug, content, title, format, edit_token, author_id, view_count, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+      INSERT INTO posts (slug, content, title, format, edit_token, author_id, view_count, status, scheduled_at, expires_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
     `);
 		const now = Date.now();
 		return stmt.run(
@@ -69,6 +89,9 @@ export const posts = {
 			data.format || "markdown",
 			data.edit_token,
 			data.author_id,
+			data.status || "published",
+			data.scheduled_at || null,
+			data.expires_at || null,
 			now,
 			now,
 		);
@@ -77,18 +100,24 @@ export const posts = {
 	/** Update post content & title by id */
 	updateContent(
 		id: number,
-		data: { content: string; title: string; format?: string },
+		data: { content: string; title: string; format?: string; status?: string; scheduled_at?: number | null; expires_at?: number | null },
 	) {
-		const stmt = db.prepare(`
-      UPDATE posts SET content = ?, title = ?, format = ?, updated_at = ? WHERE id = ?
-    `);
-		return stmt.run(
-			data.content,
-			data.title,
-			data.format || "markdown",
-			Date.now(),
-			id,
-		);
+		const sets: string[] = [];
+		const params: any[] = [];
+
+		if (data.content !== undefined) { sets.push("content = ?"); params.push(data.content); }
+		if (data.title !== undefined) { sets.push("title = ?"); params.push(data.title); }
+		if (data.format !== undefined) { sets.push("format = ?"); params.push(data.format); }
+		if (data.status !== undefined) { sets.push("status = ?"); params.push(data.status); }
+		if (data.scheduled_at !== undefined) { sets.push("scheduled_at = ?"); params.push(data.scheduled_at); }
+		if (data.expires_at !== undefined) { sets.push("expires_at = ?"); params.push(data.expires_at); }
+
+		sets.push("updated_at = ?");
+		params.push(Date.now(), id);
+
+		return db
+			.prepare(`UPDATE posts SET ${sets.join(", ")} WHERE id = ?`)
+			.run(...params);
 	},
 
 	/** Update post settings (slug, title, description, thumbnail) */
@@ -149,7 +178,7 @@ export const posts = {
 	findByAuthor(authorId: string): Post[] {
 		return db
 			.prepare(
-				"SELECT id, slug, title, format, view_count, created_at, updated_at, edit_token FROM posts WHERE author_id = ? ORDER BY created_at DESC",
+				"SELECT id, slug, title, format, view_count, status, scheduled_at, expires_at, created_at, updated_at, edit_token FROM posts WHERE author_id = ? ORDER BY created_at DESC",
 			)
 			.all(authorId) as Post[];
 	},
@@ -161,12 +190,38 @@ export const posts = {
 			.run(id, authorId);
 	},
 
-	/** All slugs + updated_at for sitemap */
-	allSlugs(): Pick<Post, "slug" | "updated_at" | "created_at">[] {
+	/** Get all published posts — for RSS and sitemap */
+	allPublished(): Pick<
+		Post,
+		"slug" | "title" | "description" | "created_at" | "updated_at"
+	>[] {
+		const now = Date.now();
 		return db
 			.prepare(
-				"SELECT slug, updated_at, created_at FROM posts ORDER BY updated_at DESC",
+				`SELECT slug, title, description, created_at, updated_at 
+       FROM posts 
+       WHERE (status = 'published' OR status IS NULL)
+         AND (scheduled_at IS NULL OR scheduled_at <= ?)
+         AND (expires_at IS NULL OR expires_at > ?)
+       ORDER BY created_at DESC`,
 			)
-			.all() as Pick<Post, "slug" | "updated_at" | "created_at">[];
+			.all(now, now) as Pick<
+			Post,
+			"slug" | "title" | "description" | "created_at" | "updated_at"
+		>[];
+	},
+
+	/** All slugs + updated_at for sitemap */
+	allSlugs(): Pick<Post, "slug" | "updated_at" | "created_at">[] {
+		const now = Date.now();
+		return db
+			.prepare(
+				`SELECT slug, updated_at, created_at FROM posts 
+       WHERE (status = 'published' OR status IS NULL)
+         AND (scheduled_at IS NULL OR scheduled_at <= ?)
+         AND (expires_at IS NULL OR expires_at > ?)
+       ORDER BY updated_at DESC`,
+			)
+			.all(now, now) as Pick<Post, "slug" | "updated_at" | "created_at">[];
 	},
 };

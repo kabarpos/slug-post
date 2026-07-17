@@ -3,6 +3,55 @@ import { posts } from "../repositories/posts";
 
 class SitemapController {
 	/**
+	 * Generate RSS 2.0 Feed
+	 * GET /rss.xml
+	 */
+	public async rss(request: Request, response: Response) {
+		try {
+			const baseUrl =
+				process.env.APP_URL || `${request.protocol}://${request.hostname}`;
+			const allPosts = posts.allPublished();
+
+			let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+			xml += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n';
+			xml += "  <channel>\n";
+			xml += `    <title>SlugPost</title>\n`;
+			xml += `    <link>${baseUrl}</link>\n`;
+			xml += `    <description>Publish and share your markdown files instantly with beautiful web previews</description>\n`;
+			xml += `    <language>en</language>\n`;
+			xml += `    <atom:link href="${baseUrl}/rss.xml" rel="self" type="application/rss+xml"/>\n`;
+			xml += `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n`;
+
+			for (const post of allPosts) {
+				const pubDate = new Date(post.created_at).toUTCString();
+				const description = post.description
+					? post.description.substring(0, 300)
+					: "";
+				xml += "    <item>\n";
+				xml += `      <title>${escapeXml(post.title)}</title>\n`;
+				xml += `      <link>${baseUrl}/${post.slug}</link>\n`;
+				xml += `      <guid isPermaLink="true">${baseUrl}/${post.slug}</guid>\n`;
+				xml += `      <pubDate>${pubDate}</pubDate>\n`;
+				if (description) {
+					xml += `      <description>${escapeXml(description)}</description>\n`;
+				}
+				xml += "    </item>\n";
+			}
+
+			xml += "  </channel>\n";
+			xml += "</rss>\n";
+
+			response.header("Content-Type", "application/rss+xml; charset=utf-8");
+			response.header("Cache-Control", "public, max-age=3600");
+			return response.send(xml);
+		} catch (error) {
+			console.error("Error generating RSS feed:", error);
+			response.status(500);
+			return response.send("Error generating RSS feed");
+		}
+	}
+
+	/**
 	 * Generate sitemap.xml
 	 */
 	public async sitemap(request: Request, response: Response) {
@@ -77,3 +126,13 @@ Sitemap: ${baseUrl}/sitemap.xml
 }
 
 export default new SitemapController();
+
+/** Escape XML special characters */
+function escapeXml(str: string): string {
+	return str
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&apos;");
+}

@@ -5,9 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><%= it.title %> - SlugPost</title>
     <meta name="description" content="<%= it.description %>">
+    <!-- Canonical URL -->
+    <link rel="canonical" href="<%= it.base_url %>/<%= it.slug %>">
+    <!-- RSS Feed -->
+    <link rel="alternate" type="application/rss+xml" title="SlugPost RSS Feed" href="<%= it.base_url %>/rss.xml">
+    <!-- Open Graph -->
     <meta property="og:title" content="<%= it.title %>">
     <meta property="og:description" content="<%= it.description %>">
     <meta property="og:type" content="article">
+    <meta property="og:url" content="<%= it.base_url %>/<%= it.slug %>">
+    <meta property="og:site_name" content="SlugPost">
+    <% if (it.thumbnail) { %>
+    <meta property="og:image" content="<%= it.thumbnail %>">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <% } %>
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="<%= it.thumbnail ? 'summary_large_image' : 'summary' %>">
+    <meta name="twitter:title" content="<%= it.title %>">
+    <meta name="twitter:description" content="<%= it.description %>">
+    <% if (it.thumbnail) { %>
+    <meta name="twitter:image" content="<%= it.thumbnail %>">
+    <% } %>
       <link rel="stylesheet" href="<%= it.asset('js/index.css') %>">
    <link rel="icon" type="image/png" sizes="32x32" href="/public/favicon-32x32.png">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">

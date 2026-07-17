@@ -181,7 +181,7 @@ class PostController {
 	public async show(request: Request, response: Response) {
 		try {
 			const { slug } = request.params;
-			const post = posts.findBySlug(slug);
+			const post = posts.findPublishedBySlug(slug);
 
 			if (!post) {
 				return response
@@ -220,6 +220,8 @@ class PostController {
 			const html = view("post.html", {
 				title: post.title,
 				description,
+				slug: post.slug,
+				thumbnail: post.thumbnail || "",
 				content: htmlContent,
 				view_count: post.view_count,
 				created_at: formatDate(post.created_at),
@@ -571,6 +573,97 @@ class PostController {
 				.status(500)
 				.type("html")
 				.send("<h1>Error loading visual builder</h1>");
+		}
+	}
+
+	/**
+	 * Public API — Publish markdown via POST
+	 * POST /api/publish
+	 */
+	public async apiPublish(request: Request, response: Response) {
+		try {
+			const body = await request.json();
+			const { content, slug: customSlug, title, scheduled_at, expires_at } = body;
+
+			if (!content) {
+				return response.status(400).json({
+					error: "Content is required",
+				});
+			}
+
+			// Generate slug if not provided
+			let slug = customSlug;
+			if (!slug) {
+				const titleMatch = content.match(/^#\s+(.+)$/m);
+				const baseSlug = titleMatch
+					? titleMatch[1].trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/[\s_]+/g, "-").replace(/^-+|-+$/g, "").substring(0, 80)
+					: `post-${Date.now()}`;
+
+				slug = baseSlug;
+				let attempts = 0;
+				while (posts.isSlugTaken(slug) && attempts < 10) {
+					slug = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`;
+					attempts++;
+				}
+			}
+
+			const slugRegex = /^[a-z0-9-]+$/;
+			if (!slugRegex.test(slug)) {
+				return response.status(400).json({
+					error: "Slug must contain only lowercase letters, numbers, and hyphens",
+				});
+			}
+
+			if (posts.isSlugTaken(slug)) {
+				return response.status(409).json({
+					error: "This slug is already taken. Please choose another one.",
+				});
+			}
+
+			// Determine status based on scheduled_at
+			let status = "published";
+			if (scheduled_at) {
+				const scheduledTime = new Date(scheduled_at).getTime();
+				if (scheduledTime > Date.now()) {
+					status = "scheduled";
+				}
+			}
+
+			const finalTitle = title || slug;
+			const editToken = randomUUID();
+			const authorId = request?.user?.id || null;
+
+			const expiresAt = expires_at ? new Date(expires_at).getTime() : null;
+			const scheduledAt = scheduled_at ? new Date(scheduled_at).getTime() : null;
+
+			const result = posts.create({
+				slug,
+				content,
+				title: finalTitle,
+				edit_token: editToken,
+				author_id: authorId,
+				status,
+				scheduled_at: scheduledAt,
+				expires_at: expiresAt,
+			});
+
+			return response.json({
+				success: true,
+				post_id: result.lastInsertRowid,
+				slug,
+				title: finalTitle,
+				status,
+				scheduled_at: scheduledAt,
+				expires_at: expiresAt,
+				public_url: `/${slug}`,
+				edit_url: `/${slug}/edit/${editToken}`,
+				edit_token: editToken,
+			});
+		} catch (error) {
+			console.error("Error in API publish:", error);
+			return response.status(500).json({
+				error: "Failed to publish post. Please try again.",
+			});
 		}
 	}
 
